@@ -2,6 +2,7 @@
 applicator/telegram_bot.py — Telegram notifications and inline review buttons.
 Falls back to plain requests if python-telegram-bot is not installed.
 """
+import html as html_mod
 import json
 import os
 import sqlite3
@@ -35,10 +36,12 @@ def _tg_post(endpoint: str, payload: dict) -> bool:
         return False
     try:
         resp = requests.post(f"{TG_API}/{endpoint}", json=payload, timeout=10)
-        resp.raise_for_status()
+        if not resp.ok:
+            logger.error(f"Telegram API {resp.status_code}: {resp.text[:300]}")
+            return False
         return True
     except Exception as e:
-        logger.warning(f"Telegram API error: {e}")
+        logger.error(f"Telegram API error: {e}")
         return False
 
 
@@ -99,19 +102,23 @@ def send_daily_digest(db_path: Path = DB_PATH) -> int:
             label = job["score_label"] or ""
             emoji = LABEL_EMOJI.get(label, "⚪")
 
-            tags_str = " ".join(f"#{t.replace(' ','_')}" for t in match_tags[:4])
-            gaps_str = " ".join(f"⚠️{g}" for g in gap_tags[:2])
-            salary_str = f"\n💰 {job['salary_raw']}" if job.get("salary_raw") else ""
+            def e(v):
+                """Escape a value for Telegram HTML mode."""
+                return html_mod.escape(str(v or ""))
+
+            tags_str = " ".join(f"#{e(t).replace(' ','_')}" for t in match_tags[:4])
+            gaps_str = " ".join(f"⚠️{e(g)}" for g in gap_tags[:2])
+            salary_str = f"\n💰 {e(job['salary_raw'])}" if job.get("salary_raw") else ""
 
             text = (
-                f"{emoji} <b>{job['title']}</b>\n"
-                f"🏢 {job['company']} | 📍 {job['location']}\n"
-                f"🌐 {job['source']}{salary_str}\n"
-                f"📊 Score: <b>{job['score']}/100</b> — {label}\n"
+                f"{emoji} <b>{e(job['title'])}</b>\n"
+                f"🏢 {e(job['company'])} | 📍 {e(job['location'])}\n"
+                f"🌐 {e(job['source'])}{salary_str}\n"
+                f"📊 Score: <b>{job['score']}/100</b> — {e(label)}\n"
                 f"✅ {tags_str}\n"
                 f"{gaps_str}\n"
-                f"💬 {job['reasoning']}\n"
-                f"🔗 <a href='{job['url']}'>View Job</a>"
+                f"💬 {e(job['reasoning'])}\n"
+                f"🔗 <a href='{e(job['url'])}'>View Job</a>"
             )
 
             markup = {
