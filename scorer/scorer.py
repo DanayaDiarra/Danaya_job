@@ -1,5 +1,6 @@
 """
-scorer/scorer.py — Score jobs against Danaya's profile using Claude API.
+scorer/scorer.py — Score jobs against Danaya's profile using Groq API (free).
+Model: llama-3.3-70b-versatile (free tier: 14,400 req/day)
 """
 import json
 import os
@@ -9,7 +10,6 @@ import time
 from pathlib import Path
 from typing import Optional
 
-import anthropic
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -19,31 +19,37 @@ load_dotenv()
 
 DB_PATH = Path(os.getenv("DB_PATH", "data/jobs.db"))
 SCORE_THRESHOLD = int(os.getenv("SCORE_THRESHOLD", "70"))
-MODEL = "claude-sonnet-4-20250514"
-RATE_LIMIT_DELAY = 0.6  # seconds between API calls
+GROQ_MODEL = "llama-3.3-70b-versatile"
+RATE_LIMIT_DELAY = 0.5  # Groq free tier: very generous limits
 
 
-def _get_client() -> anthropic.Anthropic:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+def _get_client():
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY not set. Add it to your .env file.\n"
-            "Get one at: https://console.anthropic.com/settings/keys"
+            "GROQ_API_KEY not set. Get a free key at: https://console.groq.com\n"
+            "Add it to your .env file as: GROQ_API_KEY=gsk_..."
         )
-    return anthropic.Anthropic(api_key=api_key)
+    try:
+        from groq import Groq
+        return Groq(api_key=api_key)
+    except ImportError:
+        raise RuntimeError(
+            "groq package not installed. Run: pip install groq"
+        )
 
 
 def _clean_json_response(text: str) -> str:
-    """Strip markdown fences and leading/trailing whitespace."""
+    """Strip markdown fences and whitespace."""
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
     return text.strip()
 
 
-def score_job(job: dict, client: Optional[anthropic.Anthropic] = None) -> Optional[dict]:
+def score_job(job: dict, client=None) -> Optional[dict]:
     """
-    Call Claude API to score a single job dict.
+    Call Groq API to score a single job dict.
     Returns parsed result dict or None on failure.
     """
     if client is None:
@@ -60,31 +66,37 @@ def score_job(job: dict, client: Optional[anthropic.Anthropic] = None) -> Option
 
     for attempt in range(2):
         try:
-            response = client.messages.create(
-                model=MODEL,
+            response = client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
                 max_tokens=1200,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_prompt}],
+                temperature=0.2,
             )
-            raw = response.content[0].text
+            raw = response.choices[0].message.content
             cleaned = _clean_json_response(raw)
             result = json.loads(cleaned)
             return result
+
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parse error for job {job.get('id')} (attempt {attempt+1}): {e}")
-            logger.debug(f"Raw response: {raw[:200]}")
             if attempt == 0:
                 time.sleep(1)
-        except anthropic.RateLimitError:
-            logger.warning("Rate limited by Anthropic — sleeping 30s")
-            time.sleep(30)
-        except anthropic.APITimeoutError:
-            logger.warning(f"API timeout for job {job.get('id')} (attempt {attempt+1})")
-            if attempt == 0:
-                time.sleep(5)
+
         except Exception as e:
-            logger.error(f"Unexpected error scoring job {job.get('id')}: {e}")
-            break
+            err = str(e).lower()
+            if "rate" in err or "429" in err:
+                logger.warning("Rate limited by Groq — sleeping 30s")
+                time.sleep(30)
+            elif "timeout" in err:
+                logger.warning(f"Timeout for job {job.get('id')} (attempt {attempt+1})")
+                if attempt == 0:
+                    time.sleep(5)
+            else:
+                logger.error(f"Groq API error for job {job.get('id')}: {e}")
+                break
 
     return None
 
@@ -112,7 +124,7 @@ def score_all_pending(db_path: Path = DB_PATH) -> int:
         conn.close()
         return 0
 
-    logger.info(f"Scoring {len(pending)} pending jobs...")
+    logger.info(f"Scoring {len(pending)} pending jobs with Groq ({GROQ_MODEL})...")
     scored_count = 0
 
     for job in pending:
