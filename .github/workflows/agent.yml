@@ -5,6 +5,9 @@ on:
     - cron: '0 0,6,12,18 * * *'   # every 6h UTC
   workflow_dispatch:                 # manual trigger button
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   run-agent:
     runs-on: ubuntu-latest
@@ -46,6 +49,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           HH_EMAIL: ${{ secrets.HH_EMAIL }}
           HH_PASSWORD: ${{ secrets.HH_PASSWORD }}
+          HH_API_TOKEN: ${{ secrets.HH_API_TOKEN }}
           APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
           SCORE_THRESHOLD: '70'
           MAX_APPLICATIONS_PER_DAY: '8'
