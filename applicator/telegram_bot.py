@@ -76,7 +76,7 @@ def send_daily_digest(db_path: Path = DB_PATH) -> int:
         ORDER BY s.score DESC
         LIMIT 10
     """, (SCORE_THRESHOLD,))
-    jobs = cur.fetchall()
+    jobs = [dict(row) for row in cur.fetchall()]
     conn.close()
 
     if not jobs:
