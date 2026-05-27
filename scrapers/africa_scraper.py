@@ -68,21 +68,24 @@ def _fetch(url: str, session: requests.Session) -> Optional[BeautifulSoup]:
 
 def _scrape_jobberman(session: requests.Session, cur: sqlite3.Cursor,
                       conn: sqlite3.Connection) -> int:
-    queries = ["data-scientist", "data-analyst", "business-development", "machine-learning"]
+    queries = ["data scientist", "data analyst", "machine learning", "business analyst"]
     new = 0
     base = "https://www.jobberman.com"
 
     for q in queries:
-        url = f"{base}/jobs/{q}"
+        url = f"{base}/listings?q={requests.utils.quote(q)}"
         logger.info(f"  Jobberman | {url}")
         soup = _fetch(url, session)
         if not soup:
             time.sleep(DELAY)
             continue
 
-        cards = soup.select("div.mx-auto article, div[data-testid='job-card'], li.job-item")[:MAX_RESULTS]
+        cards = soup.select(
+            "article.job-card, div.job-card, li.job-item, "
+            "div[data-testid='job-card'], article"
+        )[:MAX_RESULTS]
         if not cards:
-            # Fallback selector
+            # Fallback: any article tag
             cards = soup.find_all("article")[:MAX_RESULTS]
 
         for card in cards:
@@ -129,21 +132,27 @@ def _scrape_jobberman(session: requests.Session, cur: sqlite3.Cursor,
 
 def _scrape_rekrute(session: requests.Session, cur: sqlite3.Cursor,
                     conn: sqlite3.Connection) -> int:
-    queries = ["data+scientist", "analyste+donnees", "business+development", "machine+learning"]
+    queries = ["data scientist", "analyste donnees", "business development", "machine learning"]
     new = 0
     base = "https://www.rekrute.com"
 
     for q in queries:
-        url = f"{base}/offres-emploi.html?s=1&lang=en&keyword={q}"
+        # Rekrute search URL — keyword only, no lang/s params that cause 404
+        encoded_q = requests.utils.quote(q)
+        url = f"{base}/offres-emploi.html?keyword={encoded_q}"
         logger.info(f"  Rekrute | query='{q}'")
         soup = _fetch(url, session)
         if not soup:
             time.sleep(DELAY)
             continue
 
-        listings = soup.select(".post-id, li.post-id, div.post")[:MAX_RESULTS]
+        listings = soup.select(
+            "li.post-id, div.post-id, div.post, "
+            "article.job-listing, li.job-listing"
+        )[:MAX_RESULTS]
         if not listings:
-            listings = soup.find_all("li", class_=lambda c: c and "job" in c.lower())[:MAX_RESULTS]
+            # Broader fallback: any li/div with an anchor inside
+            listings = soup.find_all(["li", "article"], limit=MAX_RESULTS)
 
         for item in listings:
             try:
@@ -190,19 +199,23 @@ def _scrape_rekrute(session: requests.Session, cur: sqlite3.Cursor,
 
 def _scrape_brightermonday(session: requests.Session, cur: sqlite3.Cursor,
                             conn: sqlite3.Connection) -> int:
-    queries = ["data", "analyst", "machine-learning", "business-development"]
+    queries = ["data scientist", "data analyst", "machine learning", "business analyst"]
     new = 0
     base = "https://www.brightermonday.co.ke"
 
     for q in queries:
-        url = f"{base}/jobs/{q}"
+        encoded_q = requests.utils.quote(q)
+        url = f"{base}/jobs?q={encoded_q}"
         logger.info(f"  BrighterMonday | query='{q}'")
         soup = _fetch(url, session)
         if not soup:
             time.sleep(DELAY)
             continue
 
-        cards = soup.select("article.search-result, div.search-result, div[data-job-id]")[:MAX_RESULTS]
+        cards = soup.select(
+            "article.search-result, div.search-result, "
+            "div[data-job-id], article.job-card, div.job-card"
+        )[:MAX_RESULTS]
         if not cards:
             cards = soup.find_all("article")[:MAX_RESULTS]
 

@@ -19,10 +19,19 @@ load_dotenv()
 DB_PATH = Path(os.getenv("DB_PATH", "data/jobs.db"))
 BASE_URL = "https://api.hh.ru/vacancies"
 CONTACT_EMAIL = "diarradanaya5544@gmail.com"
-HEADERS = {
-    "User-Agent": f"JobAgent/1.0 ({CONTACT_EMAIL})",
-    "HH-User-Agent": f"JobAgent/1.0 ({CONTACT_EMAIL})",
-}
+
+def _build_headers() -> dict:
+    """Build request headers, adding OAuth token if available."""
+    headers = {
+        "User-Agent": f"JobAgent/1.0 ({CONTACT_EMAIL})",
+        "HH-User-Agent": f"JobAgent/1.0 ({CONTACT_EMAIL})",
+    }
+    token = os.getenv("HH_API_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+HEADERS = _build_headers()
 
 SEARCH_QUERIES = [
     "Data Scientist",
@@ -55,10 +64,13 @@ def _url_hash(url: str) -> str:
     return hashlib.sha256(url.encode()).hexdigest()
 
 
-def _fetch_detail(vacancy_id: str, session: requests.Session) -> Optional[dict]:
+def _fetch_detail(vacancy_id: str, session: requests.Session,
+                  headers: Optional[dict] = None) -> Optional[dict]:
     """Fetch full vacancy description from /vacancies/{id}."""
+    if headers is None:
+        headers = _build_headers()
     try:
-        resp = session.get(f"{BASE_URL}/{vacancy_id}", headers=HEADERS, timeout=10)
+        resp = session.get(f"{BASE_URL}/{vacancy_id}", headers=headers, timeout=10)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -88,8 +100,17 @@ def _save_job(cur: sqlite3.Cursor, job: dict) -> bool:
 def scrape_hh(db_path: Path = DB_PATH) -> int:
     """
     Scrape hh.ru using official API.
+    Requires HH_API_TOKEN env var for access from non-Russian IPs.
     Returns count of new jobs inserted.
     """
+    headers = _build_headers()
+    if "Authorization" not in headers:
+        logger.warning(
+            "HH_API_TOKEN not set — hh.ru blocks non-Russian IPs without OAuth. "
+            "Get a free token at: https://dev.hh.ru/  (create app → get access token). "
+            "Add HH_API_TOKEN=... to .env and GitHub secrets."
+        )
+
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     session = requests.Session()
@@ -107,7 +128,7 @@ def scrape_hh(db_path: Path = DB_PATH) -> int:
                 "only_with_salary": False,
             }
             try:
-                resp = session.get(BASE_URL, params=params, headers=HEADERS, timeout=15)
+                resp = session.get(BASE_URL, params=params, headers=headers, timeout=15)
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as e:
@@ -131,7 +152,7 @@ def scrape_hh(db_path: Path = DB_PATH) -> int:
                     continue
 
                 # Fetch full description
-                detail = _fetch_detail(item["id"], session)
+                detail = _fetch_detail(item["id"], session, headers)
                 time.sleep(0.3)
 
                 if detail:

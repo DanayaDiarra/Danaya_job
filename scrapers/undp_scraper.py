@@ -16,7 +16,7 @@ load_dotenv()
 
 DB_PATH = Path(os.getenv("DB_PATH", "data/jobs.db"))
 
-RELIEFWEB_URL = "https://api.reliefweb.int/v1/jobs"
+RELIEFWEB_URL = "https://api.reliefweb.int/v2/jobs"
 UN_ORGS = ["UNDP", "UNICEF", "WFP", "UNHCR", "UN Women", "FAO", "ILO",
            "IOM", "UNOPS", "UN-Habitat"]
 MAX_PAGES = 3
