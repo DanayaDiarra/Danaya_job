@@ -1,0 +1,16 @@
+.env
+data/jobs.db
+data/agent.log
+data/applications/
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
+.DS_Store
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+screenshots/
+*.pdf
+*.docx

@@ -1,0 +1,14 @@
+[theme]
+base = "dark"
+backgroundColor = "#080b12"
+secondaryBackgroundColor = "#0d1117"
+primaryColor = "#00d4aa"
+textColor = "#e2e8f5"
+font = "monospace"
+
+[server]
+headless = true
+enableCORS = false
+
+[browser]
+gatherUsageStats = false

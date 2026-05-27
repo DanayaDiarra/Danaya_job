@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Arial', sans-serif;
+  font-size: 10.5px;
+  color: #1a1a1a;
+  padding: 32px 40px;
+  line-height: 1.45;
+}
+h1 {
+  font-size: 22px;
+  text-align: center;
+  letter-spacing: 1px;
+  color: #0d1117;
+  margin-bottom: 4px;
+}
+.contact {
+  text-align: center;
+  font-size: 9px;
+  color: #555;
+  margin-bottom: 18px;
+}
+h2 {
+  font-size: 11px;
+  color: #0064a0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1.5px solid #0064a0;
+  padding-bottom: 2px;
+  margin: 14px 0 6px;
+}
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+.job-title { font-weight: bold; font-size: 10.5px; }
+.job-meta  { font-size: 9px; color: #666; }
+ul { margin: 4px 0 8px 18px; }
+li { margin-bottom: 2px; }
+.skills-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+}
+p { margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<h1>{{ candidate.name }}</h1>
+<div class="contact">
+  {{ candidate.email }} &nbsp;|&nbsp; {{ candidate.phone }} &nbsp;|&nbsp;
+  {{ candidate.location }} &nbsp;|&nbsp; {{ candidate.linkedin }}
+</div>
+
+<h2>Professional Summary</h2>
+<p>{{ summary }}</p>
+
+<h2>Experience</h2>
+{% for exp in experience %}
+<div class="job-header">
+  <span class="job-title">{{ exp.title }} — {{ exp.company }}</span>
+  <span class="job-meta">{{ exp.location }} &nbsp;|&nbsp; {{ exp.dates }}</span>
+</div>
+<ul>
+  {% for bullet in exp.bullets %}<li>{{ bullet }}</li>{% endfor %}
+</ul>
+{% endfor %}
+
+<h2>Education</h2>
+{% for edu in education %}
+<div class="job-header">
+  <span class="job-title">{{ edu.degree }} — {{ edu.school }}</span>
+  <span class="job-meta">{{ edu.dates }}</span>
+</div>
+{% if edu.note %}<p style="font-size:9px;color:#555;margin:2px 0 6px">{{ edu.note }}</p>{% endif %}
+{% endfor %}
+
+<h2>Skills</h2>
+<div class="skills-grid">
+{% for s in skills %}
+<div>• {{ s }}</div>
+{% endfor %}
+</div>
+</body>
+</html>

@@ -1,0 +1,68 @@
+name: Job Agent
+
+on:
+  schedule:
+    - cron: '0 0,6,12,18 * * *'   # every 6h UTC
+  workflow_dispatch:                 # manual trigger button
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
+
+      - name: Restore DB from cache
+        uses: actions/cache@v4
+        with:
+          path: data/jobs.db
+          key: jobs-db-${{ github.run_number }}
+          restore-keys: jobs-db-
+
+      - name: Ensure data directory exists
+        run: mkdir -p data/applications
+
+      - name: Run pipeline (no submit)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          HH_EMAIL: ${{ secrets.HH_EMAIL }}
+          HH_PASSWORD: ${{ secrets.HH_PASSWORD }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          SCORE_THRESHOLD: '70'
+          MAX_APPLICATIONS_PER_DAY: '8'
+          DB_PATH: 'data/jobs.db'
+          LOG_PATH: 'data/agent.log'
+        run: python main.py --no-submit
+
+      - name: Upload database artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobs-database-${{ github.run_number }}
+          path: data/jobs.db
+          retention-days: 30
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-logs-${{ github.run_number }}
+          path: data/agent.log
+          retention-days: 7

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<style>
+body {
+  font-family: 'Arial', sans-serif;
+  font-size: 11px;
+  color: #1a1a1a;
+  padding: 50px 60px;
+  line-height: 1.7;
+  max-width: 680px;
+}
+.date { color: #555; margin-bottom: 24px; }
+.salutation { font-weight: bold; margin-bottom: 16px; }
+.body-text { margin-bottom: 20px; white-space: pre-line; }
+.sign-off { margin-top: 32px; }
+.name { font-weight: bold; font-size: 12px; margin-top: 4px; }
+.contact { font-size: 10px; color: #555; }
+</style>
+</head>
+<body>
+<div class="date">{{ date }}</div>
+<div class="salutation">{{ salutation }}</div>
+<div class="body-text">{{ body }}</div>
+<div class="sign-off">
+  {{ sign_off_phrase }}<br>
+  <span class="name">{{ candidate_name }}</span><br>
+  <span class="contact">{{ candidate_email }} &nbsp;|&nbsp; {{ candidate_phone }}</span>
+</div>
+</body>
+</html>
