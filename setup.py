@@ -71,15 +71,30 @@ def init_db(db_path: Path = DB_PATH) -> None:
         notes        TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS candidate_profile (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename    TEXT,
+        cv_text     TEXT    NOT NULL,
+        uploaded_at TEXT    DEFAULT (datetime('now')),
+        is_active   INTEGER DEFAULT 1
+    );
+
     CREATE INDEX IF NOT EXISTS idx_jobs_source   ON jobs(source);
     CREATE INDEX IF NOT EXISTS idx_jobs_scraped  ON jobs(scraped_at);
     CREATE INDEX IF NOT EXISTS idx_scored_score  ON scored_jobs(score);
     CREATE INDEX IF NOT EXISTS idx_decisions_job ON decisions(job_id);
     """)
 
-    # Migrations: add columns introduced after initial schema
+    # Migrations: add columns / tables introduced after initial schema
     migrations = [
         "ALTER TABLE scored_jobs ADD COLUMN notified_at TEXT DEFAULT NULL",
+        """CREATE TABLE IF NOT EXISTS candidate_profile (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT,
+            cv_text TEXT NOT NULL,
+            uploaded_at TEXT DEFAULT (datetime('now')),
+            is_active INTEGER DEFAULT 1
+        )""",
     ]
     for sql in migrations:
         try:

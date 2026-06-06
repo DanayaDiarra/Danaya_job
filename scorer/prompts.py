@@ -52,13 +52,7 @@ UN/INGO internships
 SENIORITY: Junior–Mid (3 years experience, MSc student)
 """.strip()
 
-SYSTEM_PROMPT = f"""You are an expert technical recruiter evaluating job fit for a specific candidate.
-Respond ONLY with valid JSON — no markdown fences, no preamble, no explanation outside the JSON.
-Be honest. Do not inflate scores. Consider seniority gaps carefully.
-
-CANDIDATE PROFILE:
-{CANDIDATE_PROFILE}
-
+_SCORING_INSTRUCTIONS = """
 SCORING RUBRIC:
 90-100: Near-perfect match — almost all key requirements met
 75-89:  Strong match — minor gaps only
@@ -67,7 +61,7 @@ SCORING RUBRIC:
 0-39:   Poor match — do not surface
 
 RESPONSE JSON SCHEMA (return exactly this structure):
-{{
+{
   "score": <integer 0-100>,
   "score_label": <"Excellent Match" | "Good Match" | "Partial Match" | "Poor Match">,
   "match_tags": [<3 to 6 specific matching skills or experiences>],
@@ -77,7 +71,23 @@ RESPONSE JSON SCHEMA (return exactly this structure):
   "tailored_summary": "<80 word max first-person CV summary using keywords from THIS specific job>",
   "cover_letter": "<150-200 word cover letter body in the correct language for this job's country>",
   "cover_language": <"ru" | "fr" | "en">
-}}"""
+}"""
+
+
+def build_system_prompt(profile: str = None) -> str:
+    """Build the scoring system prompt with either the uploaded or default profile."""
+    candidate = (profile or CANDIDATE_PROFILE).strip()
+    return (
+        "You are an expert technical recruiter evaluating job fit for a specific candidate.\n"
+        "Respond ONLY with valid JSON — no markdown fences, no preamble, no explanation outside the JSON.\n"
+        "Be honest. Do not inflate scores. Consider seniority gaps carefully.\n\n"
+        f"CANDIDATE PROFILE:\n{candidate}\n"
+        f"{_SCORING_INSTRUCTIONS}"
+    )
+
+
+# Keep backward-compatible default
+SYSTEM_PROMPT = build_system_prompt()
 
 USER_PROMPT_TEMPLATE = """JOB TO EVALUATE:
 Title: {title}

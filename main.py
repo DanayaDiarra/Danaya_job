@@ -236,6 +236,15 @@ def main():
     # 1. Init DB
     init_db()
 
+    # 1b. Check for CV uploads — process immediately if found
+    try:
+        from applicator.cv_listener import check_for_cv_upload
+        cv_uploaded = check_for_cv_upload(DB_PATH)
+        if cv_uploaded:
+            logger.info("CV processed and jobs sent. Continuing with regular pipeline.")
+    except Exception as e:
+        logger.warning(f"CV listener failed: {e}")
+
     # 2. Scrape
     scraped = 0
     if not args.score_only:

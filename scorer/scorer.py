@@ -13,7 +13,7 @@ from typing import Optional
 from dotenv import load_dotenv
 from loguru import logger
 
-from .prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+from .prompts import build_system_prompt, USER_PROMPT_TEMPLATE
 
 load_dotenv()
 
@@ -47,13 +47,31 @@ def _clean_json_response(text: str) -> str:
     return text.strip()
 
 
-def score_job(job: dict, client=None) -> Optional[dict]:
+def get_active_profile(db_path: Path = DB_PATH) -> Optional[str]:
+    """Return the most recently uploaded CV text, or None to use the default profile."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT cv_text FROM candidate_profile WHERE is_active=1 ORDER BY uploaded_at DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
+def score_job(job: dict, client=None, profile: Optional[str] = None) -> Optional[dict]:
     """
     Call Groq API to score a single job dict.
+    profile: optional CV text override; uses DB profile or default if None.
     Returns parsed result dict or None on failure.
     """
     if client is None:
         client = _get_client()
+
+    system_prompt = build_system_prompt(profile)
 
     user_prompt = USER_PROMPT_TEMPLATE.format(
         title=job.get("title", ""),
@@ -69,7 +87,7 @@ def score_job(job: dict, client=None) -> Optional[dict]:
             response = client.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 max_tokens=1200,
@@ -103,10 +121,13 @@ def score_job(job: dict, client=None) -> Optional[dict]:
 
 def score_all_pending(db_path: Path = DB_PATH) -> int:
     """
-    Score all jobs not yet in scored_jobs table.
+    Score all jobs not yet in scored_jobs table, using the active CV profile.
     Returns count of newly scored jobs.
     """
     client = _get_client()
+    profile = get_active_profile(db_path)
+    if profile:
+        logger.info("Using uploaded CV profile for scoring.")
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
@@ -131,7 +152,7 @@ def score_all_pending(db_path: Path = DB_PATH) -> int:
         job_dict = dict(job)
         logger.info(f"Scoring: [{job_dict['source']}] {job_dict['title']} @ {job_dict.get('company', '?')}")
 
-        result = score_job(job_dict, client)
+        result = score_job(job_dict, client, profile=profile)
         time.sleep(RATE_LIMIT_DELAY)
 
         if result is None:
