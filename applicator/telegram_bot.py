@@ -69,7 +69,8 @@ def _send_message(text: str, parse_mode: str = "HTML",
 
 def send_daily_digest(db_path: Path = DB_PATH) -> int:
     """
-    Send Telegram digest of top new matches not yet decided.
+    Send Telegram digest of top new matches not yet notified or decided.
+    A job is sent at most once — notified_at is stamped on success.
     Returns number of jobs sent.
     """
     conn = sqlite3.connect(db_path)
@@ -84,15 +85,16 @@ def send_daily_digest(db_path: Path = DB_PATH) -> int:
         JOIN scored_jobs s ON s.job_id = j.id
         LEFT JOIN decisions d ON d.job_id = j.id
         WHERE s.score >= ?
+          AND s.notified_at IS NULL
           AND d.id IS NULL
         ORDER BY s.score DESC
         LIMIT 10
     """, (SCORE_THRESHOLD,))
     jobs = [dict(row) for row in cur.fetchall()]
-    conn.close()
 
     if not jobs:
         logger.info("No new matches to send in digest")
+        conn.close()
         _send_message(f"🤖 <b>Job Agent — {date.today()}</b>\nNo new matches above threshold.")
         return 0
 
@@ -103,6 +105,10 @@ def send_daily_digest(db_path: Path = DB_PATH) -> int:
         f"Review each below 👇"
     )
 
+    def e(v):
+        """Escape a value for Telegram HTML mode."""
+        return html_mod.escape(str(v or ""))
+
     sent = 0
     for job in jobs:
         try:
@@ -110,10 +116,6 @@ def send_daily_digest(db_path: Path = DB_PATH) -> int:
             gap_tags = json.loads(job["gap_tags"] or "[]")
             label = job["score_label"] or ""
             emoji = LABEL_EMOJI.get(label, "⚪")
-
-            def e(v):
-                """Escape a value for Telegram HTML mode."""
-                return html_mod.escape(str(v or ""))
 
             tags_str = " ".join(f"#{e(t).replace(' ','_')}" for t in match_tags[:4])
             gaps_str = " ".join(f"⚠️{e(g)}" for g in gap_tags[:2])
@@ -139,11 +141,18 @@ def send_daily_digest(db_path: Path = DB_PATH) -> int:
             }
 
             if _send_message(text, reply_markup=markup):
+                # Stamp notified_at so this job is never sent again
+                cur.execute(
+                    "UPDATE scored_jobs SET notified_at = datetime('now') WHERE job_id = ?",
+                    (job["id"],)
+                )
+                conn.commit()
                 sent += 1
 
         except Exception as e:
             logger.error(f"Error sending job {job['id']} to Telegram: {e}")
 
+    conn.close()
     logger.success(f"Telegram digest sent: {sent}/{len(jobs)} jobs")
     return sent
 

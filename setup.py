@@ -47,7 +47,8 @@ def init_db(db_path: Path = DB_PATH) -> None:
         tailored_cv     TEXT,
         cover_letter    TEXT,
         cover_language  TEXT    DEFAULT 'en',
-        scored_at       TEXT    DEFAULT (datetime('now'))
+        scored_at       TEXT    DEFAULT (datetime('now')),
+        notified_at     TEXT    DEFAULT NULL
     );
 
     CREATE TABLE IF NOT EXISTS decisions (
@@ -75,6 +76,16 @@ def init_db(db_path: Path = DB_PATH) -> None:
     CREATE INDEX IF NOT EXISTS idx_scored_score  ON scored_jobs(score);
     CREATE INDEX IF NOT EXISTS idx_decisions_job ON decisions(job_id);
     """)
+
+    # Migrations: add columns introduced after initial schema
+    migrations = [
+        "ALTER TABLE scored_jobs ADD COLUMN notified_at TEXT DEFAULT NULL",
+    ]
+    for sql in migrations:
+        try:
+            cur.execute(sql)
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
     conn.commit()
     conn.close()
