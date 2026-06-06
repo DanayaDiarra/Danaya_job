@@ -9,6 +9,8 @@ Usage:
   python main.py --dry-run        # everything except actual submission
 """
 import argparse
+import base64
+import json
 import os
 import sqlite3
 import sys
@@ -38,6 +40,43 @@ logger.add(LOG_PATH, level="DEBUG", rotation="10 MB", retention="30 days",
 def init_db():
     from setup import init_db as _init
     _init(DB_PATH)
+
+
+def _apply_queued_decisions():
+    """
+    Read decisions_queue.json (written by bot_server when user taps buttons),
+    write them to the DB, then clear the queue file via GitHub API.
+    """
+    queue_file = Path("decisions_queue.json")
+    if not queue_file.exists():
+        return
+    try:
+        queue = json.loads(queue_file.read_text())
+        decisions = queue.get("decisions", [])
+        if not decisions:
+            return
+
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        applied = 0
+        for item in decisions:
+            job_id  = item.get("job_id")
+            decision = item.get("decision")
+            if not job_id or decision not in ("apply", "skip", "later"):
+                continue
+            cur.execute("""
+                INSERT OR REPLACE INTO decisions (job_id, decision)
+                VALUES (?, ?)
+            """, (job_id, decision))
+            applied += 1
+        conn.commit()
+        conn.close()
+
+        # Clear the queue file so decisions aren't applied twice
+        queue_file.write_text(json.dumps({"decisions": []}, indent=2))
+        logger.info(f"Applied {applied} queued decisions from bot server")
+    except Exception as e:
+        logger.warning(f"Could not apply queued decisions: {e}")
 
 
 def run_scrapers() -> int:
@@ -236,14 +275,23 @@ def main():
     # 1. Init DB
     init_db()
 
-    # 1b. Check for CV uploads — process immediately if found
-    try:
-        from applicator.cv_listener import check_for_cv_upload
-        cv_uploaded = check_for_cv_upload(DB_PATH)
-        if cv_uploaded:
-            logger.info("CV processed and jobs sent. Continuing with regular pipeline.")
-    except Exception as e:
-        logger.warning(f"CV listener failed: {e}")
+    # 1b. Apply any queued decisions from the bot server (decisions_queue.json)
+    _apply_queued_decisions()
+
+    # 1c. If CV_B64 is set (CV uploaded via bot → workflow_dispatch), save it
+    #     and switch to score-only mode so results come back fast (~3 min)
+    cv_b64 = os.getenv("CV_B64", "").strip()
+    if cv_b64:
+        try:
+            cv_text = base64.b64decode(cv_b64).decode("utf-8")
+            if len(cv_text.strip()) > 50:
+                from applicator.cv_listener import _save_profile, _reset_scores
+                _save_profile(cv_text, "uploaded_via_bot.pdf", DB_PATH)
+                cleared = _reset_scores(DB_PATH)
+                logger.info(f"CV received from bot: saved profile, cleared {cleared} old scores")
+                args.score_only = True   # skip scraping — score existing jobs only
+        except Exception as e:
+            logger.warning(f"CV_B64 decode failed: {e}")
 
     # 2. Scrape
     scraped = 0

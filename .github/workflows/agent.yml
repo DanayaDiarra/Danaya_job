@@ -3,7 +3,12 @@ name: Job Agent
 on:
   schedule:
     - cron: '0 0,6,12,18 * * *'   # every 6h UTC
-  workflow_dispatch:                 # manual trigger button
+  workflow_dispatch:
+    inputs:
+      cv_b64:
+        description: 'Base64-encoded CV text (set by bot server on CV upload)'
+        required: false
+        default: ''
 
 jobs:
   run-agent:
@@ -37,7 +42,7 @@ jobs:
       - name: Ensure data directory exists
         run: mkdir -p data/applications
 
-      - name: Run pipeline (no submit)
+      - name: Run pipeline
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.DANAYAJOB_BOT }}
@@ -48,10 +53,13 @@ jobs:
           HH_PASSWORD: ${{ secrets.HH_PASSWORD }}
           HH_API_TOKEN: ${{ secrets.HH_API_TOKEN }}
           APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          GITHUB_PAT: ${{ secrets.GH_PAT }}
+          GITHUB_REPO: DanayaDiarra/Danaya_job
           SCORE_THRESHOLD: '70'
           MAX_APPLICATIONS_PER_DAY: '8'
           DB_PATH: 'data/jobs.db'
           LOG_PATH: 'data/agent.log'
+          CV_B64: ${{ inputs.cv_b64 }}
         run: python main.py --no-submit
 
       - name: Upload database artifact
