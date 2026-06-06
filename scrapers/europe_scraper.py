@@ -88,7 +88,11 @@ def _scrape_remoteok(session: requests.Session, cur: sqlite3.Cursor,
                 "company": item.get("company", ""),
                 "location": "Remote",
                 "country": "Remote",
-                "salary_raw": f"{item.get('salary_min','')}-{item.get('salary_max','')}".strip("-"),
+                "salary_raw": (
+                    f"{item.get('salary_min','')}-{item.get('salary_max','')}"
+                    .strip("-").strip()
+                    if item.get("salary_min") or item.get("salary_max") else ""
+                ),
                 "job_type": "Remote",
                 "language": "en",
                 "description": description,

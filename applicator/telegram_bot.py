@@ -6,6 +6,7 @@ import html as html_mod
 import json
 import os
 import sqlite3
+import time
 from datetime import date
 from pathlib import Path
 
@@ -29,20 +30,28 @@ LABEL_EMOJI = {
 }
 
 
-def _tg_post(endpoint: str, payload: dict) -> bool:
-    """Low-level Telegram HTTP POST."""
+def _tg_post(endpoint: str, payload: dict, retries: int = 3) -> bool:
+    """Low-level Telegram HTTP POST with retry on network errors."""
     if not BOT_TOKEN or not CHAT_ID:
         logger.warning("Telegram not configured (BOT_TOKEN or CHAT_ID missing)")
         return False
-    try:
-        resp = requests.post(f"{TG_API}/{endpoint}", json=payload, timeout=10)
-        if not resp.ok:
-            logger.error(f"Telegram API {resp.status_code}: {resp.text[:300]}")
+    for attempt in range(retries):
+        try:
+            resp = requests.post(f"{TG_API}/{endpoint}", json=payload, timeout=15)
+            if not resp.ok:
+                logger.error(f"Telegram API {resp.status_code}: {resp.text[:300]}")
+                return False
+            return True
+        except requests.exceptions.ConnectionError as e:
+            wait = 2 ** attempt  # 1s, 2s, 4s
+            logger.warning(f"Telegram connection error (attempt {attempt+1}/{retries}), retrying in {wait}s: {e}")
+            if attempt < retries - 1:
+                time.sleep(wait)
+        except Exception as e:
+            logger.error(f"Telegram API error: {e}")
             return False
-        return True
-    except Exception as e:
-        logger.error(f"Telegram API error: {e}")
-        return False
+    logger.error(f"Telegram: all {retries} attempts failed")
+    return False
 
 
 def _send_message(text: str, parse_mode: str = "HTML",
