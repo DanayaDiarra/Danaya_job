@@ -84,17 +84,19 @@ def run_scrapers() -> int:
     from scrapers.africa_scraper import scrape_africa
     from scrapers.europe_scraper import scrape_europe
     from scrapers.remote_scraper import scrape_remote
+    from scrapers.global_scraper import scrape_global
     from scrapers.undp_scraper import scrape_undp
     from scrapers.linkedin_scraper import scrape_linkedin
 
     total = 0
     for name, fn in [
-        ("hh.ru", scrape_hh),
-        ("Africa", scrape_africa),
-        ("Europe", scrape_europe),
+        ("hh.ru",         scrape_hh),
+        ("Africa",        scrape_africa),
+        ("Europe",        scrape_europe),
         ("Remote boards", scrape_remote),
-        ("UN/INGO", scrape_undp),
-        ("LinkedIn", scrape_linkedin),
+        ("Global boards", scrape_global),
+        ("UN/INGO",       scrape_undp),
+        ("LinkedIn",      scrape_linkedin),
     ]:
         try:
             logger.info(f"▶ Starting {name} scraper")
@@ -227,7 +229,8 @@ def run_submissions(dry_run: bool = False) -> int:
 
         elif source in ("jobberman", "rekrute", "brightermonday", "remoteok",
                          "relocateme", "reliefweb", "remotive", "jobicy",
-                         "arbeitnow", "weworkremotely"):
+                         "arbeitnow", "weworkremotely", "himalayas", "aijobs",
+                         "workingnomads", "themuse", "devsnap"):
             # Try email if recruiter address in description
             method = "email"
             try:
